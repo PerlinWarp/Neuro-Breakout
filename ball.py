@@ -1,6 +1,7 @@
 import pygame
 from random import randint
-BLACK = (0,0,0)
+
+from common import *
 
 class Ball(pygame.sprite.Sprite):
 	# Ball class derives from Sprite class in pygame
@@ -24,12 +25,10 @@ class Ball(pygame.sprite.Sprite):
 		self.rect = self.image.get_rect()
 
 	def update(self):
-		self.rect.x += int(self.velocity[0])
-		self.rect.y += int(self.velocity[1])
-
-		# Stop ball from just bouncing off the side walls.
-		self.velocity[1] += 0.00001
+		self.rect.x += self.velocity[0]
+		self.rect.y += self.velocity[1]
 
 	def bounce(self):
 		self.velocity[0] = -self.velocity[0]
-		self.velocity[1] = randint(-8,8)
+		# Don't let this be zero - Stop ball from just bouncing off the side walls.
+		self.velocity[1] = randint(-8,8) + 0.01

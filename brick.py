@@ -1,5 +1,6 @@
 import pygame
-BLACK = (0,0,0)
+
+from common import *
 
 class Brick(pygame.sprite.Sprite):
     #This class represents a brick. It derives from the "Sprite" class in Pygame.

@@ -1,7 +1,7 @@
 import pygame
-BLACK = (0,0,0)
 
-MAX_POS = 700
+import common as c
+
  
 class Paddle(pygame.sprite.Sprite):
     # This class represents a paddle. It derives from the "Sprite" class in Pygame.
@@ -13,8 +13,8 @@ class Paddle(pygame.sprite.Sprite):
         # Pass in the color of the car, and its x and y position, width and height.
         # Set the background color and set it to be transparent
         self.image = pygame.Surface([width, height])
-        self.image.fill(BLACK)
-        self.image.set_colorkey(BLACK)
+        self.image.fill(c.BLACK)
+        self.image.set_colorkey(c.BLACK)
  
         # Draw the paddle (a rectangle!)
         pygame.draw.rect(self.image, color, [0, 0, width, height])
@@ -31,5 +31,5 @@ class Paddle(pygame.sprite.Sprite):
     def moveRight(self, pixels):
         self.rect.x += pixels
         # Bounds check
-        if self.rect.x > MAX_POS:
-            self.rect.x = MAX_POS
+        if self.rect.x > c.WIN_X - c.PADDLE_X:
+            self.rect.x = c.WIN_X - c.PADDLE_X
