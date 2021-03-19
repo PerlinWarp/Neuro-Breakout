@@ -18,14 +18,17 @@ class Ball(pygame.sprite.Sprite):
 		# Draw a rectangle for the ball
 		pygame.draw.rect(self.image, colour, [0, 0, width, height])
 
-		self.velocity = [randint(4,8), randint(-8,8)]
+		self.velocity = [randint(4,8), randint(-8,7)]
 
 		# Fetch the rectangle object that has the dimentions of the image. 
 		self.rect = self.image.get_rect()
 
 	def update(self):
-		self.rect.x += self.velocity[0]
-		self.rect.y += self.velocity[1]
+		self.rect.x += int(self.velocity[0])
+		self.rect.y += int(self.velocity[1])
+
+		# Stop ball from just bouncing off the side walls.
+		self.velocity[1] += 0.00001
 
 	def bounce(self):
 		self.velocity[0] = -self.velocity[0]
