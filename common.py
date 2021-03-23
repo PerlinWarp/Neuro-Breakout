@@ -1,5 +1,16 @@
-# Common variables.
+## Myo Commons
+import struct
 
+def pack(fmt, *args):
+    return struct.pack('<' + fmt, *args)
+
+def unpack(fmt, *args):
+    return struct.unpack('<' + fmt, *args)
+
+def text(scr, font, txt, pos, clr=(255,255,255)):
+    scr.blit(font.render(txt, True, clr), pos)
+
+## Pygame Commons
 # Window size
 SCALE = int(2)
 WIN_X = 800 * SCALE
@@ -20,3 +31,5 @@ PADDLE_Y = 10 * SCALE
 PADDLE_SPEED = 6 * SCALE
 
 BALL_SIZE = 10 * SCALE
+
+

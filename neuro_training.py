@@ -1,7 +1,11 @@
 import pygame
+import multiprocessing
+import numpy as np
+
 
 import common as c
 from paddle import Paddle
+from myo_raw import MyoRaw
 
 pygame.init()
  
@@ -32,19 +36,41 @@ carryOn = True
 clock = pygame.time.Clock()
 
 paddle_dir = MOVE_SPEED
+
+# ------------ Myo Setup ---------------
+q = multiprocessing.Queue()
+
+m = MyoRaw()
+m.connect()
+
+def worker(q):
+	def add_to_queue(emg, movement):
+		q.put(emg)
+
+	m.add_emg_handler(add_to_queue)
+
+	"""worker function"""
+	while carryOn:
+		m.run(1)
+	print("Worker Stopped")
+
+ # Orange logo and bar LEDs
+m.set_leds([128, 128, 0], [128, 128, 0])
+# Vibrate to know we connected okay
+m.vibrate(1)
+
 # -------- Main Program Loop -----------
+p = multiprocessing.Process(target=worker, args=(q,))
+p.start()
+
+data = []
+
 while carryOn:
 	# --- Main event loop
 	for event in pygame.event.get(): # User did something
 		if event.type == pygame.QUIT: # If user clicked close
 			  carryOn = False # Flag that we are done so we exit this loop
 
-	# Moving the paddle when the use uses the arrow keys
-	keys = pygame.key.get_pressed()
-	if keys[pygame.K_LEFT]:
-		paddle.moveLeft(c.PADDLE_SPEED)
-	if keys[pygame.K_RIGHT]:
-		paddle.moveRight(c.PADDLE_SPEED)
 
 	paddle.rect.x += paddle_dir
 	# If we hit a wall
@@ -55,6 +81,13 @@ while carryOn:
 		# Went too far left, go right
 		paddle_dir = MOVE_SPEED
 
+	# Deal the the data from the Myo
+	# The queue is now full of all data recorded during this time step
+	while not(q.empty()):
+		d = list(q.get())
+		d.append(paddle.rect.x)
+		data.append(d)
+		
 	# --- Game logic should go here
 	all_sprites_list.update()
 
@@ -85,6 +118,29 @@ while carryOn:
  
 	# --- Limit to 60 frames per second
 	clock.tick(60)
+
+	# Moving the paddle when the use uses the arrow keys
+	keys = pygame.key.get_pressed()
+	if keys[pygame.K_LEFT]:
+		paddle.moveLeft(c.PADDLE_SPEED)
+	if keys[pygame.K_RIGHT]:
+		paddle.moveRight(c.PADDLE_SPEED)
+	if keys[pygame.K_SPACE]:
+		# Shut down Myo Worker
+		carryOn = False
+
+		m.disconnect()
+		print("Myo Disconnected")
+	
+		# Handle data
+		np_data = np.asarray(data)
+		np.savetxt("foo.csv", np_data, delimiter=",")
+		print("Data Saved in foo.csv")
+
+		pygame.quit()
+		p.terminate()
+		p.join()
+		
  
 # Once we have exited the main program loop we can stop the game engine:
 pygame.quit()
