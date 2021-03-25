@@ -189,7 +189,7 @@ class BT(object):
 class MyoRaw(object):
     '''Implements the Myo-specific communication protocol.'''
 
-    def __init__(self, tty=None):
+    def __init__(self, tty=None, filtered=False):
         if tty is None:
             tty = self.detect_tty()
         if tty is None:
@@ -202,6 +202,7 @@ class MyoRaw(object):
         self.arm_handlers = []
         self.pose_handlers = []
         self.battery_handlers = []
+        self.filtered = filtered
 
     def detect_tty(self):
         for p in comports():
@@ -284,7 +285,10 @@ class MyoRaw(object):
             # enable on/off arm notifications
             self.write_attr(0x24, b'\x02\x00')
             # enable EMG notifications
-            self.start_raw()
+            if (self.filtered):
+                self.start_filtered()
+            else:
+                self.start_raw()
             # enable battery notifications
             self.write_attr(0x12, b'\x01\x10')
 
@@ -404,6 +408,26 @@ class MyoRaw(object):
         # self.write_attr(0x28, b'\x01\x00')  # Not needed for raw signals
         # self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
 
+    def start_filtered(self):
+        '''By writting a 0x0100 command to handle 0x28, some kind of "hidden" EMG
+        notification characteristic is activated. This characteristic is not
+        listed on the Myo services of the offical BLE specification from Thalmic
+        Labs. Also, in the second line where we tell the Myo to enable EMG and
+        IMU data streams and classifier events, the 0x01 command wich corresponds
+        to the EMG mode is not listed on the myohw_emg_mode_t struct of the Myo
+        BLE specification.
+        These two lines, besides enabling the IMU and the classifier, enable the
+        transmission of a stream of low-pass filtered EMG signals from the eight
+        sensor pods of the Myo armband (the "hidden" mode I mentioned above).
+        Instead of getting the raw EMG signals, we get rectified and smoothed
+        signals, a measure of the amplitude of the EMG (which is useful to have
+        a measure of muscle strength, but are not as useful as a truly raw signal).
+        '''
+
+        self.write_attr(0x28, b'\x01\x00')
+        self.write_attr(0x19, b'\x01\x03\x01\x01\x00')
+        self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
+
     def mc_start_collection(self):
         '''Myo Connect sends this sequence (or a reordering) when starting data
         collection for v1.0 firmware; this enables raw data but disables arm and
@@ -504,7 +528,7 @@ if __name__ == '__main__':
     last_vals = None
 
     def plot(scr, vals):
-        DRAW_LINES = True
+        DRAW_LINES = False
 
         global last_vals
         if last_vals is None:
@@ -529,7 +553,7 @@ if __name__ == '__main__':
         pygame.display.flip()
         last_vals = vals
 
-    m = MyoRaw(sys.argv[1] if len(sys.argv) >= 2 else None)
+    m = MyoRaw(sys.argv[1] if len(sys.argv) >= 2 else None, filtered=True)
 
     def proc_emg(emg, moving, times=[]):
         if HAVE_PYGAME:

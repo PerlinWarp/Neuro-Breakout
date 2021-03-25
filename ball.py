@@ -19,7 +19,7 @@ class Ball(pygame.sprite.Sprite):
 		# Draw a rectangle for the ball
 		pygame.draw.rect(self.image, colour, [0, 0, width, height])
 
-		self.velocity = [randint(4,8), randint(-8,7)]
+		self.velocity = [randint(4,8), randint(-8,7) - 1]
 
 		# Fetch the rectangle object that has the dimentions of the image. 
 		self.rect = self.image.get_rect()
@@ -29,6 +29,6 @@ class Ball(pygame.sprite.Sprite):
 		self.rect.y += self.velocity[1]
 
 	def bounce(self):
-		self.velocity[0] = -self.velocity[0]
+		self.velocity[0] = -self.velocity[0] + 1
 		# Don't let this be zero - Stop ball from just bouncing off the side walls.
-		self.velocity[1] = randint(-8,8) + 0.01
+		self.velocity[1] = randint(-8,8) + 1

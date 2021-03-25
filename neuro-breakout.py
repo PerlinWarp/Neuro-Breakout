@@ -5,7 +5,7 @@ import common as c
 from paddle import Paddle
 from ball import Ball
 from brick import Brick
-from myo_filtered import MyoRaw
+from myo_raw import MyoRaw
 
 pygame.init()
  
@@ -71,7 +71,7 @@ clock = pygame.time.Clock()
 # ------------ Myo Setup ---------------
 q = multiprocessing.Queue()
 
-m = MyoRaw()
+m = MyoRaw(filtered=True)
 m.connect()
 
 def worker(q):
@@ -84,6 +84,11 @@ def worker(q):
 	while carryOn:
 		m.run(1)
 	print("Worker Stopped")
+
+def print_battery(bat):
+	print("Battery level:", bat)
+
+m.add_battery_handler(print_battery)
 
  # Orange logo and bar LEDs
 m.set_leds([128, 0, 0], [128, 0, 0])
@@ -132,8 +137,8 @@ while carryOn:
 		right_data.append(d[2]/800)
 	
 	if (len(left_data) > 0):
-		left = sum(left_data)/len(left_data) #* (right_max/left_max)
-		right = sum(right_data)/len(right_data) #* (left_max/right_max)
+		left = sum(left_data)/len(left_data)
+		right = sum(right_data)/len(right_data)
 
 				# Check scale
 		if (left > left_max): 
@@ -143,7 +148,7 @@ while carryOn:
 			right_max = (right + right_max)/2
 			print("right max", right_max)
 
-		pred_paddle_pos =  (left*-c.WIN_X) + (right*c.WIN_X) - c.PADDLE_X
+		pred_paddle_pos = (left*-c.WIN_X) + (right*c.WIN_X) - c.PADDLE_X
 		# Stop small gitters
 		if ( abs(pred_paddle_pos-paddle.rect.x)/c.WIN_X > 0.1):
 			# We have made a big change, so its worth updating the position
@@ -155,23 +160,23 @@ while carryOn:
 	# Check if the ball is bouncing against any of the 4 walls:
 	if ball.rect.x >= c.WIN_X - c.BALL_SIZE:
 		ball.velocity[0] = -ball.velocity[0]
-	if ball.rect.x <= 0:
+	elif ball.rect.x <= 0:
 		ball.velocity[0] = -ball.velocity[0]
-	if ball.rect.y > c.WIN_Y - c.BALL_SIZE:
+	
+	if ball.rect.y >= c.WIN_Y - c.BALL_SIZE:
 		ball.velocity[1] = -1* abs(ball.velocity[1])
 		lives -= 1
 		if lives == 0:
 			#Display Game Over Message for 3 seconds
 			font = pygame.font.Font(None, 74)
 			text = font.render("GAME OVER", 1, c.WHITE)
-			screen.blit(text, (250 * c.SCALE, 300 * c.SCALE ))
+			screen.blit(text, (c.WIN_X/2 - 74, c.WIN_Y/2 ))
 			pygame.display.flip()
 			pygame.time.wait(3000)
  
 			#Stop the Game
 			carryOn=False
- 
-	if ball.rect.y < 40:
+	elif ball.rect.y < 40:
 		ball.velocity[1] = abs(ball.velocity[1])
 
 	# Stop it from getting stuck veritcally
