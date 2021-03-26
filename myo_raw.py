@@ -265,7 +265,7 @@ class MyoRaw(object):
             # less than 1000, emg_hz is correct. If it is greater, the actual
             # framerate starts dropping inversely. Also, if this is much less than
             # 1000, EMG data becomes slower to respond to changes. In conclusion,
-            # 1000 is probably a good value.
+            # 1000 is probably a good value.f
             C = 1000
             emg_hz = 50
             # strength of low-pass filtering of EMG data
@@ -363,6 +363,13 @@ class MyoRaw(object):
         self.write_attr(0x19, pack('3B', 9, 1, mode))
 
     def power_off(self):
+        '''
+        function to power off the Myo Armband (actually, according to the official BLE specification, 
+        the 0x04 command puts the Myo into deep sleep, there is no way to completely turn the device off). 
+        I think this is a very useful feature since, without this function, you have to wait until the Myo battery is 
+        fully discharged, or use the official Myo app for Windows or Mac and turn off the device from there.
+        - Alvaro Villoslada (Alvipe)
+        '''
         self.write_attr(0x19, b'\x04\x00')
 
     def start_raw(self):
@@ -382,7 +389,7 @@ class MyoRaw(object):
             0x03 -> 3 bytes of payload
             0x02 -> send 50Hz filtered signals
             0x01 -> send IMU data streams
-            0x01 -> send classifier events
+            0x01 -> send classifier events or dont (0x00)
         '''
         self.write_attr(0x19, b'\x01\x03\x02\x01\x01')
 
@@ -426,7 +433,7 @@ class MyoRaw(object):
 
         self.write_attr(0x28, b'\x01\x00')
         self.write_attr(0x19, b'\x01\x03\x01\x01\x00')
-        self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
+        #self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
 
     def mc_start_collection(self):
         '''Myo Connect sends this sequence (or a reordering) when starting data
@@ -528,7 +535,7 @@ if __name__ == '__main__':
     last_vals = None
 
     def plot(scr, vals):
-        DRAW_LINES = False
+        DRAW_LINES = True
 
         global last_vals
         if last_vals is None:
@@ -553,7 +560,7 @@ if __name__ == '__main__':
         pygame.display.flip()
         last_vals = vals
 
-    m = MyoRaw(sys.argv[1] if len(sys.argv) >= 2 else None, filtered=True)
+    m = MyoRaw(sys.argv[1] if len(sys.argv) >= 2 else None, filtered=False)
 
     def proc_emg(emg, moving, times=[]):
         if HAVE_PYGAME:
@@ -607,14 +614,17 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        # m.power_off()
-        # print("Power off")
-        m.disconnect()
-        print("Disconnected")
-        # command = raw_input("Do you want to (d)isconnect or (p)ower off?\n")
+        pygame.quit()
+        m.power_off()
+        print("Power off")
+        #m.disconnect()
+        #print("Disconnected")
+        # command = input("Do you want to (d)isconnect or (p)ower off?\n")
+        # print(command, type(command))
         # if command == 'd':
         #     m.disconnect()
         #     print("Disconnected")
         # elif command == 'p':
         #     m.power_off()
         #     print("Power off")
+        

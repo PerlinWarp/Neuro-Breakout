@@ -1,7 +1,3 @@
-''' 
-Gathering data and training labels
-Data is saved in foo.csv in working directory
-'''
 import pygame
 import multiprocessing
 import numpy as np
@@ -9,7 +5,7 @@ import numpy as np
 
 import common as c
 from paddle import Paddle
-from myo_raw import MyoRaw
+from myo_nonraw import MyoRaw
 
 pygame.init()
  
@@ -44,7 +40,7 @@ paddle_dir = MOVE_SPEED
 # ------------ Myo Setup ---------------
 q = multiprocessing.Queue()
 
-m = MyoRaw(filtered=True)
+m = MyoRaw()
 m.connect()
 
 def worker(q):
@@ -59,7 +55,7 @@ def worker(q):
 	print("Worker Stopped")
 
  # Orange logo and bar LEDs
-m.set_leds([128, 128, 0], [128, 128, 0])
+m.set_leds([128, 0, 0], [128, 0, 0])
 # Vibrate to know we connected okay
 m.vibrate(1)
 
@@ -67,7 +63,7 @@ m.vibrate(1)
 p = multiprocessing.Process(target=worker, args=(q,))
 p.start()
 
-data = []
+old_paddle_pos = 0 
 
 while carryOn:
 	# --- Main event loop
@@ -75,23 +71,23 @@ while carryOn:
 		if event.type == pygame.QUIT: # If user clicked close
 			  carryOn = False # Flag that we are done so we exit this loop
 
-
-	paddle.rect.x += paddle_dir
-	# If we hit a wall
-	if (paddle.rect.x >= c.WIN_X - c.PADDLE_X):
-		# Went too far right, go left
-		paddle_dir = -1 * MOVE_SPEED
-	elif (paddle.rect.x <= 0):
-		# Went too far left, go right
-		paddle_dir = MOVE_SPEED
-
 	# Deal the the data from the Myo
 	# The queue is now full of all data recorded during this time step
+	# Take a moving average
+	left_data = []
+	right_data = []
 	while not(q.empty()):
 		d = list(q.get())
-		d.append(paddle.rect.x)
-		data.append(d)
-		
+		left_data.append(d[7] / 1000)
+		right_data.append(d[2] / 800)
+	if (len(left_data) > 0):
+		left = sum(left_data)/len(left_data)
+		right = sum(right_data)/len(right_data)
+		paddle.rect.x = (old_paddle_pos + (paddle.rect.x  + (left*-c.WIN_X) + (right*c.WIN_X))) / 3
+		old_paddle_pos = paddle.rect.x
+
+	print(right_data)
+
 	# --- Game logic should go here
 	all_sprites_list.update()
 

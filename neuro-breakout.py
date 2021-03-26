@@ -160,8 +160,10 @@ while carryOn:
 	# Check if the ball is bouncing against any of the 4 walls:
 	if ball.rect.x >= c.WIN_X - c.BALL_SIZE:
 		ball.velocity[0] = -ball.velocity[0]
+		ball.velocity[1] += 1
 	elif ball.rect.x <= 0:
 		ball.velocity[0] = -ball.velocity[0]
+		ball.velocity[1] += 1
 	
 	if ball.rect.y >= c.WIN_Y - c.BALL_SIZE:
 		ball.velocity[1] = -1* abs(ball.velocity[1])
