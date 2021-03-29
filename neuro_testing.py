@@ -1,11 +1,7 @@
-''' 
-Gathering data and training labels
-Data is saved in foo.csv in working directory
-'''
 import pygame
 import multiprocessing
 import numpy as np
-import time
+
 
 import common as c
 from paddle import Paddle
@@ -16,11 +12,6 @@ pygame.init()
 score = 0
 lives = 3
 MOVE_SPEED = 10
-
-# Experiment vars
-FILTER = False
-TIMER = True
-
  
 # Open a new window
 size = (c.WIN_X, c.WIN_Y)
@@ -47,14 +38,15 @@ clock = pygame.time.Clock()
 paddle_dir = MOVE_SPEED
 
 # ------------ Myo Setup ---------------
-q = multiprocessing.Queue()
+arr = multiprocessing.Array('i', range(8))
 
-m = MyoRaw(filtered=FILTER, raw=True)
+m = MyoRaw(filtered=False)
 m.connect()
 
-def worker(q):
+def worker(shared_array):
 	def add_to_queue(emg, movement):
-		q.put(emg)
+		for i in range(8):
+			shared_array[i] = emg[i]
 
 	m.add_emg_handler(add_to_queue)
 
@@ -64,18 +56,17 @@ def worker(q):
 	print("Worker Stopped")
 
  # Orange logo and bar LEDs
-m.set_leds([128, 128, 0], [128, 128, 0])
+m.set_leds([128, 0, 128], [128, 0, 128])
 # Vibrate to know we connected okay
 m.vibrate(1)
 
 # -------- Main Program Loop -----------
-start_time = time.time()
-start_time_ns = time.perf_counter_ns() 
-p = multiprocessing.Process(target=worker, args=(q,))
+p = multiprocessing.Process(target=worker, args=(arr,))
 p.start()
 
-#data = ['One', 'Two', 'Three', "Four", "Five", "Six", "Seven", "Eight", "Rect", "Time"]
-data = []
+# Take a moving average
+left_data = []
+right_data = []
 
 while carryOn:
 	# --- Main event loop
@@ -84,22 +75,19 @@ while carryOn:
 			  carryOn = False # Flag that we are done so we exit this loop
 
 
-	paddle.rect.x += paddle_dir
-	# If we hit a wall
-	if (paddle.rect.x >= c.WIN_X - c.PADDLE_X):
-		# Went too far right, go left
-		paddle_dir = -1 * MOVE_SPEED
-	elif (paddle.rect.x <= 0):
-		# Went too far left, go right
-		paddle_dir = MOVE_SPEED
-
-	# Deal the the data from the Myo
-	# The queue is now full of all data recorded during this time step
-	while not(q.empty()):
-		d = list(q.get())
-		d.append(paddle.rect.x)
-		d.append(time.perf_counter_ns() - start_time_ns)
-		data.append(d)
+	# A very simple prediction
+	left_data.append(arr[7] / 500)
+	right_data.append(arr[2] / 700)
+	
+	print(f" 2 = {arr[2]}, 7 = {arr[7]}")
+	print(f"L{left}, R{right}")
+	# if (left > right):
+	# 	paddle.rect.x = 100
+	# else:
+	# 	paddle.rect.x = 800
+	paddle.rect.x = (left*-c.WIN_X) + (right*c.WIN_X)
+	#paddle.rect.x = (sum(arr[:])/3000) * c.WIN_X
+	#paddle.rect.x = (arr[4]/100) * c.WIN_X
 		
 	# --- Game logic should go here
 	all_sprites_list.update()
@@ -138,32 +126,17 @@ while carryOn:
 		paddle.moveLeft(c.PADDLE_SPEED)
 	if keys[pygame.K_RIGHT]:
 		paddle.moveRight(c.PADDLE_SPEED)
-	if keys[pygame.K_SPACE]:		
+	if keys[pygame.K_SPACE]:
+		# Shut down Myo Worker
 		carryOn = False
 
-	if (TIMER):
-		'''
-		Stop recording data if we have reached the timelimit
-		'''
-		time_elapsed = time.time() - start_time
-		if (time_elapsed > 20):
-			print(f"Timer Activated: {time_elapsed}")
-			carryOn = False
-		
-	if carryOn == False:
-		# Shut down Myo Worker
 		m.disconnect()
 		print("Myo Disconnected")
-	
-		# Handle data
-		np_data = np.asarray(data)
-		np.savetxt("foo.csv", np_data, delimiter=",")
-		print("Data Saved in foo.csv")
 
 		pygame.quit()
 		p.terminate()
 		p.join()
-
+		
  
 # Once we have exited the main program loop we can stop the game engine:
 pygame.quit()
