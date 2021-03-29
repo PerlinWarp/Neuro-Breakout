@@ -6,7 +6,6 @@ from paddle import Paddle
 from ball import Ball
 from brick import Brick
 from myo_raw import MyoRaw
-from predictor import Predictor
 
 pygame.init()
  
@@ -72,7 +71,7 @@ clock = pygame.time.Clock()
 # ------------ Myo Setup ---------------
 q = multiprocessing.Queue()
 
-m = MyoRaw(raw=False, filtered=True)
+m = MyoRaw(raw=True, filtered=False)
 m.connect()
 
 def worker(q):
@@ -100,10 +99,12 @@ m.vibrate(1)
 p = multiprocessing.Process(target=worker, args=(q,))
 p.start()
 
-# Make a predictor
-pred_paddle_pos = c.WIN_X / 2
-predictor = Predictor()
-
+# Prediction variables
+old_paddle_pos = []
+paddle_pos_mean = c.WIN_X//2; 
+pred_paddle_pos = 0
+left_max = 0.1
+right_max = 0.1
 
 while carryOn:
 	# --- Main event loop
@@ -121,18 +122,39 @@ while carryOn:
 	# Paddle prediction
 	left_data = []
 	right_data = []
+	old_paddle_pos.append(pred_paddle_pos)
+	# Keep track of the last 40 positions
+	if (len(old_paddle_pos) > 20):
+		old_paddle_pos.pop(0)
+	paddle_pos_mean = sum(old_paddle_pos) / len(old_paddle_pos)
 
 	while not(q.empty()):
-		# Get the new data from the Myo queue
 		d = list(q.get())
-		left_data.append(d[7])
-		right_data.append(d[2])
+		
+		#left_data.append(d[7] / left_max)
+		#right_data.append(d[2] / right_max)
+		left_data.append(abs(d[7]/128))
+		right_data.append(abs(d[2]/128))
+	
+	if (len(left_data) > 0):
+		left = max(left_data)
+		right = max(right_data)
 
-	if (len(right_data) > 0):
-		# If we got new data, make a prediction
-		pred_paddle_pos = predictor.predict(left_data, right_data)
+				# Check scale
+		if (left > left_max): 
+			left_max = (left + left_max)/2
+			print("left max", left_max)
+		if (right > right_max): 
+			right_max = (right + right_max)/2
+			print("right max", right_max)
 
-	paddle.rect.x = pred_paddle_pos
+		#pred_paddle_pos = c.WIN_X + (left*-c.WIN_X) + (right*c.WIN_X) - c.PADDLE_X
+		pred_paddle_pos = (left*-c.WIN_X) + (right*c.WIN_X) - c.PADDLE_X
+		# Stop small gitters
+		if ( abs(pred_paddle_pos-paddle.rect.x)/c.WIN_X > 0.1):
+			# We have made a big change, so its worth updating the position
+			paddle.rect.x = (3*paddle_pos_mean + pred_paddle_pos)/4
+
 	# --- Game logic should go here
 	all_sprites_list.update()
 

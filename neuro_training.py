@@ -5,7 +5,7 @@ Data is saved in foo.csv in working directory
 import pygame
 import multiprocessing
 import numpy as np
-
+import time
 
 import common as c
 from paddle import Paddle
@@ -16,6 +16,11 @@ pygame.init()
 score = 0
 lives = 3
 MOVE_SPEED = 10
+
+# Experiment vars
+FILTER = False
+TIMER = True
+
  
 # Open a new window
 size = (c.WIN_X, c.WIN_Y)
@@ -44,7 +49,7 @@ paddle_dir = MOVE_SPEED
 # ------------ Myo Setup ---------------
 q = multiprocessing.Queue()
 
-m = MyoRaw(filtered=True)
+m = MyoRaw(filtered=FILTER, raw=True)
 m.connect()
 
 def worker(q):
@@ -64,9 +69,12 @@ m.set_leds([128, 128, 0], [128, 128, 0])
 m.vibrate(1)
 
 # -------- Main Program Loop -----------
+start_time = time.time()
+start_time_ns = time.perf_counter_ns() 
 p = multiprocessing.Process(target=worker, args=(q,))
 p.start()
 
+#data = ['One', 'Two', 'Three', "Four", "Five", "Six", "Seven", "Eight", "Rect", "Time"]
 data = []
 
 while carryOn:
@@ -90,6 +98,7 @@ while carryOn:
 	while not(q.empty()):
 		d = list(q.get())
 		d.append(paddle.rect.x)
+		d.append(time.perf_counter_ns() - start_time_ns)
 		data.append(d)
 		
 	# --- Game logic should go here
@@ -129,10 +138,20 @@ while carryOn:
 		paddle.moveLeft(c.PADDLE_SPEED)
 	if keys[pygame.K_RIGHT]:
 		paddle.moveRight(c.PADDLE_SPEED)
-	if keys[pygame.K_SPACE]:
-		# Shut down Myo Worker
+	if keys[pygame.K_SPACE]:		
 		carryOn = False
 
+	if (TIMER):
+		'''
+		Stop recording data if we have reached the timelimit
+		'''
+		time_elapsed = time.time() - start_time
+		if (time_elapsed > 20):
+			print(f"Timer Activated: {time_elapsed}")
+			carryOn = False
+		
+	if carryOn == False:
+		# Shut down Myo Worker
 		m.disconnect()
 		print("Myo Disconnected")
 	
@@ -144,7 +163,7 @@ while carryOn:
 		pygame.quit()
 		p.terminate()
 		p.join()
-		
+
  
 # Once we have exited the main program loop we can stop the game engine:
 pygame.quit()

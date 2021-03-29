@@ -189,7 +189,7 @@ class BT(object):
 class MyoRaw(object):
     '''Implements the Myo-specific communication protocol.'''
 
-    def __init__(self, tty=None, filtered=False):
+    def __init__(self, tty=None, raw = True, filtered=False):
         if tty is None:
             tty = self.detect_tty()
         if tty is None:
@@ -202,6 +202,7 @@ class MyoRaw(object):
         self.arm_handlers = []
         self.pose_handlers = []
         self.battery_handlers = []
+        self.raw = raw
         self.filtered = filtered
 
     def detect_tty(self):
@@ -285,10 +286,17 @@ class MyoRaw(object):
             # enable on/off arm notifications
             self.write_attr(0x24, b'\x02\x00')
             # enable EMG notifications
-            if (self.filtered):
-                self.start_filtered()
+            if not(self.raw):
+                # Send the undocumented filtered 50Hz. 
+                print("Starting filtered, 0x01")
+                self.start_filtered() # 0x01
             else:
-                self.start_raw()
+                if (self.filtered):
+                    print("Starting raw filtered, 0x02")
+                    self.start_raw() # 0x02
+                else:
+                    print("Starting raw, unfiltered, 0x03")
+                    self.start_raw_unfiltered() #0x03
             # enable battery notifications
             self.write_attr(0x12, b'\x01\x10')
 
@@ -373,8 +381,10 @@ class MyoRaw(object):
         self.write_attr(0x19, b'\x04\x00')
 
     def start_raw(self):
+        ''' 
+        Sends 200Hz, non rectified signal.
 
-        ''' To get raw EMG signals, we subscribe to the four EMG notification
+        To get raw EMG signals, we subscribe to the four EMG notification
         characteristics by writing a 0x0100 command to the corresponding handles.
         '''
         self.write_attr(0x2c, b'\x01\x00')  # Suscribe to EmgData0Characteristic
@@ -391,6 +401,7 @@ class MyoRaw(object):
             0x01 -> send IMU data streams
             0x01 -> send classifier events or dont (0x00)
         '''
+        # struct.pack('<5B', 1, 3, emg_mode, imu_mode, classifier_mode)
         self.write_attr(0x19, b'\x01\x03\x02\x01\x01')
 
         '''Sending this sequence for v1.0 firmware seems to enable both raw data and
@@ -416,7 +427,10 @@ class MyoRaw(object):
         # self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
 
     def start_filtered(self):
-        '''By writting a 0x0100 command to handle 0x28, some kind of "hidden" EMG
+        '''
+        Sends 50hz filtered and rectified signal.
+
+        By writting a 0x0100 command to handle 0x28, some kind of "hidden" EMG
         notification characteristic is activated. This characteristic is not
         listed on the Myo services of the offical BLE specification from Thalmic
         Labs. Also, in the second line where we tell the Myo to enable EMG and
@@ -429,11 +443,24 @@ class MyoRaw(object):
         Instead of getting the raw EMG signals, we get rectified and smoothed
         signals, a measure of the amplitude of the EMG (which is useful to have
         a measure of muscle strength, but are not as useful as a truly raw signal).
+        However this seems to use a data rate of 50Hz. 
         '''
 
         self.write_attr(0x28, b'\x01\x00')
         self.write_attr(0x19, b'\x01\x03\x01\x01\x00')
-        #self.write_attr(0x19, b'\x01\x03\x01\x01\x01')
+        
+    def start_raw_unfiltered(self):
+        '''
+        To get raw EMG signals, we subscribe to the four EMG notification
+        characteristics by writing a 0x0100 command to the corresponding handles.
+        '''
+        self.write_attr(0x2c, b'\x01\x00')  # Suscribe to EmgData0Characteristic
+        self.write_attr(0x2f, b'\x01\x00')  # Suscribe to EmgData1Characteristic
+        self.write_attr(0x32, b'\x01\x00')  # Suscribe to EmgData2Characteristic
+        self.write_attr(0x35, b'\x01\x00')  # Suscribe to EmgData3Characteristic
+
+        # struct.pack('<5B', 1, 3, emg_mode, imu_mode, classifier_mode)
+        self.write_attr(0x19, b'\x01\x03\x03\x01\x00')
 
     def mc_start_collection(self):
         '''Myo Connect sends this sequence (or a reordering) when starting data
