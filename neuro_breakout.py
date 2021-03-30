@@ -121,16 +121,20 @@ while carryOn:
 	# Paddle prediction
 	left_data = []
 	right_data = []
+	data = []
 
 	while not(q.empty()):
 		# Get the new data from the Myo queue
 		d = list(q.get())
 		left_data.append(d[7])
 		right_data.append(d[2])
+		data.append(d)
 
 	if (len(right_data) > 0):
 		# If we got new data, make a prediction
-		pred_paddle_pos = predictor.predict(left_data, right_data)
+		# Custom predictor
+		#pred_paddle_pos = predictor.predict(left_data, right_data)
+		pred_paddle_pos = predictor.simple_predict(data, scale=2000)
 
 	paddle.rect.x = pred_paddle_pos
 	# --- Game logic should go here

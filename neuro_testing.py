@@ -1,7 +1,5 @@
 import pygame
 import multiprocessing
-import numpy as np
-
 
 import common as c
 from paddle import Paddle
@@ -40,7 +38,7 @@ paddle_dir = MOVE_SPEED
 # ------------ Myo Setup ---------------
 arr = multiprocessing.Array('i', range(8))
 
-m = MyoRaw(filtered=False)
+m = MyoRaw(raw=False, filtered=True)
 m.connect()
 
 def worker(shared_array):
@@ -67,6 +65,7 @@ p.start()
 # Take a moving average
 left_data = []
 right_data = []
+paddle_predicted_pos = 0
 
 while carryOn:
 	# --- Main event loop
@@ -80,35 +79,25 @@ while carryOn:
 	right_data.append(arr[2] / 700)
 	
 	print(f" 2 = {arr[2]}, 7 = {arr[7]}")
-	print(f"L{left}, R{right}")
-	# if (left > right):
-	# 	paddle.rect.x = 100
-	# else:
-	# 	paddle.rect.x = 800
-	paddle.rect.x = (left*-c.WIN_X) + (right*c.WIN_X)
-	#paddle.rect.x = (sum(arr[:])/3000) * c.WIN_X
-	#paddle.rect.x = (arr[4]/100) * c.WIN_X
-		
+
+	# --- Put your model here.
+	pred_paddle_pos = ((sum(arr[:])/3000) * c.WIN_X) - c.PADDLE_X
+	
+	# Stop small gitters
+	if ( abs(pred_paddle_pos-paddle.rect.x) /c.WIN_X > 0.03 ):
+		# We have made a big change, so its worth updating the position
+		paddle.rect.x = pred_paddle_pos
+
 	# --- Game logic should go here
 	all_sprites_list.update()
 
 	# --- Drawing code should go here
 	# First, clear the screen to dark blue.
 	screen.fill(c.DARKBLUE)
-	pygame.draw.line(screen, c.WHITE, [0, 38], [c.WIN_X, 38], 2)
- 
-	#Display the score and the number of lives at the top of the screen
-	font = pygame.font.Font(None, 34)
-	text = font.render("Score: " + str(score), 1, c.WHITE)
-	screen.blit(text, (int(c.WIN_X * 1/8),10))
-	text = font.render("Lives: " + str(lives), 1, c.WHITE)
-	screen.blit(text, (int(c.WIN_X * 7/8),10))
  
 	# Display message about training data
 	font = pygame.font.Font(None, 82)
-	text = font.render("Keeping your arm still", 10, c.WHITE)
-	screen.blit(text, (int(c.WIN_X * 1/4) - 41, int(c.WIN_Y/2) - 60 ))
-	text = font.render("Use your wrist to follow the paddle", 10, c.WHITE)
+	text = font.render("Use your wrist to move the paddle", 10, c.WHITE)
 	screen.blit(text, (int(c.WIN_X * 1/4) - 41,int(c.WIN_Y/2)))
 
 	#Now let's draw all the sprites in one go. (For now we only have 2 sprites!)

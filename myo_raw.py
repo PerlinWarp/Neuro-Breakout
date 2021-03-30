@@ -7,6 +7,10 @@
 
     Edited by Alvaro Villoslada (Alvipe)
         https://github.com/Alvipe/myo-raw
+
+    Edited by perlinwarp
+        https://github.com/PerlinWarp/Neuro-Breakout
+
 '''
 
 import enum

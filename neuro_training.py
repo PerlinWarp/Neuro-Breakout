@@ -163,7 +163,6 @@ while carryOn:
 		pygame.quit()
 		p.terminate()
 		p.join()
-
  
 # Once we have exited the main program loop we can stop the game engine:
 pygame.quit()
