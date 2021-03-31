@@ -10,6 +10,11 @@ python3 neuro_breakout.py
 ```
 Will run a simple model I created using my own data, so it may not work well for you. 
 
+**Myo Hello world**
+```
+python3 myo_raw.py
+```
+Uses pygame to plot each of the 8 myo channels, useful for debugging.  
 
 ### Gathering new data:
 ![Generate labels by swinging your hand left to right.](media/Training.gif?raw=true)
