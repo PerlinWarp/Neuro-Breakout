@@ -20,8 +20,9 @@ Uses pygame to plot each of the 8 myo channels, useful for debugging.
 ![Generate labels by swinging your hand left to right.](media/Training.gif?raw=true)
 
 You can gather training data by running `` python3 neuro_training.py ``.  
-Follow the paddle with your hand and the program will gather training data, for a default of 20 seconds before saving it to ``foo.csv``.
-
+Follow the paddle with your hand and the program will gather training data, for a default of 20 seconds before saving it to ``foo.csv``.  
+**Note that sEMG data, the same kind gathered by the Myo is thought to be uniquely identifiable. Do not share this data without careful consideration of the future implications.**  
+  
 ### Using a more generic model:
 ```
 python3 neuro_testing.py
@@ -65,6 +66,8 @@ Many factors affect the data sent from the Myo. One key factor is the rotation o
 ![Myo data from two different people from Myo.com](media/Myo-Blog-Signals.gif?raw=true)  
    
 Above is an image from the [Myo blog](https://developerblog.myo.com/big-data/), showing data from two different people making the exact same gesture, any assumption we use in making a model may not apply to people outside of the same data.   
+  
+This image hints at the uniquenes of sEMG data, like many things this could be used for good or bad. Possible uses include using sEMG as a password, or to fingerprint and track users, especially when combined with other data sources. As always, think before you share.      
   
 An obvious example is if the user is left or right handed. I realised another important factor when I tried a more complex model on someone with a much smaller wrist than mine, I assumed the Myo sizing clips would solve this problem, but they did not. From the collected data (ommitted for privacy) it seemed, the muscle I was targetting would span across 4 sensors on their wrist but only 2 on mine and therefore even with fixed rotation of the band I cannot assume which muscles show up in what channel. This gets more complicated when I considered the ratio between the fixed area of the sensor plate and the variable muscle size of different users.    
   
