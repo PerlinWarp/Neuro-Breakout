@@ -6,6 +6,7 @@ Playing Breakout with sEMG and Myo Armband.
 
 ### Usage:
 ```
+pip install pyomyo==0.0.2
 python3 neuro_breakout.py
 ```
 Will run a simple model I created using my own data, so it may not work well for you. 
@@ -38,16 +39,16 @@ The code is primarily developed on Linux and should work on Windows and MacOS.
 
 #### Getting data from the Myo
 To communicate with the Myo, I used [pyomyo](https://github.com/PerlinWarp/pyomyo). 
-  
+
 emg_mode.PREPROCESSED (0x01)  
 By default myo-raw sends 50Hz data that has been rectified and filtered, using a hidden 0x01 mode.  
-  
+
 emg_mode.FILTERED (0x02)  
 Alvipe added the ability to also get filtered non-rectified sEMG (thanks Alvipe).  
-  
+
 emg_mode.RAW (0x03)  
 Then I further added the ability to get true raw non-filtered data at 200Hz. This data is unrectified but scales from -128 and 127.  
-  
+
 Sample data and a comparison between data captured in these modes can be found in [MyoEMGPreprocessing.ipynb](Notebooks/MyoModesCompared/MyoEMGPreprocessing.ipynb). Also in this notebook is an explanation of the preprocessing done to the sEMG data and why we do it.  
 
 #### Why did I make this?

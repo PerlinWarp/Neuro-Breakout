@@ -5,7 +5,7 @@ import common as c
 from paddle import Paddle
 from ball import Ball
 from brick import Brick
-from myo import Myo, emg_mode
+from pyomyo import Myo, emg_mode
 from predictor import Predictor
 
 # ------------ Myo Setup ---------------

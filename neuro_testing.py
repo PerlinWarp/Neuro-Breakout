@@ -3,7 +3,7 @@ import multiprocessing
 
 import common as c
 from paddle import Paddle
-from myo import Myo, emg_mode
+from pyomyo import Myo, emg_mode
 
 pygame.init()
  
