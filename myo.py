@@ -1,4 +1,25 @@
 '''
+The MIT License (MIT)
+Copyright (c) 2020 PerlinWarp
+Copyright (c) 2014 Danny Zhu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 	Original by dzhu
 		https://github.com/dzhu/myo-raw
 
@@ -8,9 +29,12 @@
 	Edited by Alvaro Villoslada (Alvipe)
 		https://github.com/Alvipe/myo-raw
 
-	Edited by perlinwarp
-		https://github.com/PerlinWarp/Neuro-Breakout
+	Edited by PerlinWarp
+		https://github.com/PerlinWarp/pyomyo
 
+Warning, when using this library in a multithreaded way,
+know that any function called on Myo_Raw, may try to use the serial port,
+in windows if this is tried from a seperate thread you will get a permission error
 '''
 
 import enum
@@ -23,8 +47,11 @@ import time
 import serial
 from serial.tools.list_ports import comports
 
-from common import *
+def pack(fmt, *args):
+	return struct.pack('<' + fmt, *args)
 
+def unpack(fmt, *args):
+	return struct.unpack('<' + fmt, *args)
 
 def multichr(ords):
 	if sys.version_info[0] >= 3:
@@ -39,6 +66,11 @@ def multiord(b):
 	else:
 		return map(ord, b)
 
+class emg_mode(enum.Enum):
+	NO_DATA = 0 # Do not send EMG data
+	PREPROCESSED = 1 # Sends 50Hz rectified and band pass filtered data
+	FILTERED = 2 # Sends 200Hz filtered but not rectified data
+	RAW = 3 # Sends raw 200Hz data from the ADC ranged between -128 and 127
 
 class Arm(enum.Enum):
 	UNKNOWN = 0
@@ -84,12 +116,10 @@ class BT(object):
 		self.handlers = []
 
 	# internal data-handling methods
-	def recv_packet(self, timeout=None):
-		t0 = time.time()
-		self.ser.timeout = None
-		while timeout is None or time.time() < t0 + timeout:
-			if timeout is not None:
-				self.ser.timeout = t0 + timeout - time.time()
+	def recv_packet(self):
+		n = self.ser.inWaiting() # Windows fix
+
+		while True:
 			c = self.ser.read()
 			if not c:
 				return None
@@ -98,17 +128,12 @@ class BT(object):
 			if ret:
 				if ret.typ == 0x80:
 					self.handle_event(ret)
+					# Windows fix
+					if n >= 5096:
+						print("Clearning",n)
+						self.ser.flushInput()
+					# End of Windows fix
 				return ret
-
-	def recv_packets(self, timeout=.5):
-		res = []
-		t0 = time.time()
-		while time.time() < t0 + timeout:
-			p = self.recv_packet(t0 + timeout - time.time())
-			if not p:
-				return res
-			res.append(p)
-		return res
 
 	def proc_byte(self, c):
 		if not self.buf:
@@ -190,10 +215,10 @@ class BT(object):
 			self.handle_event(p)
 
 
-class MyoRaw(object):
+class Myo(object):
 	'''Implements the Myo-specific communication protocol.'''
 
-	def __init__(self, tty=None, raw = True, filtered=False):
+	def __init__(self, tty=None, mode=1):
 		if tty is None:
 			tty = self.detect_tty()
 		if tty is None:
@@ -206,8 +231,7 @@ class MyoRaw(object):
 		self.arm_handlers = []
 		self.pose_handlers = []
 		self.battery_handlers = []
-		self.raw = raw
-		self.filtered = filtered
+		self.mode = mode
 
 	def detect_tty(self):
 		for p in comports():
@@ -217,10 +241,14 @@ class MyoRaw(object):
 
 		return None
 
-	def run(self, timeout=None):
-		self.bt.recv_packet(timeout)
+	def run(self):
+		self.bt.recv_packet()
 
-	def connect(self):
+	def connect(self, addr=None):
+		'''
+		Connect to a Myo
+		Addr is the MAC address in format: [93, 41, 55, 245, 82, 194]
+		'''
 		# stop everything from before
 		self.bt.end_scan()
 		self.bt.disconnect(0)
@@ -228,17 +256,17 @@ class MyoRaw(object):
 		self.bt.disconnect(2)
 
 		# start scanning
-		print('scanning...')
-		self.bt.discover()
-		while True:
-			p = self.bt.recv_packet()
-			print('scan response:', p)
+		if (addr is None):
+			print('scanning...')
+			self.bt.discover()
+			while True:
+				p = self.bt.recv_packet()
+				print('scan response:', p)
 
-			if p.payload.endswith(b'\x06\x42\x48\x12\x4A\x7F\x2C\x48\x47\xB9\xDE\x04\xA9\x01\x00\x06\xD5'):
-				addr = list(multiord(p.payload[2:8]))
-				break
-		self.bt.end_scan()
-
+				if p.payload.endswith(b'\x06\x42\x48\x12\x4A\x7F\x2C\x48\x47\xB9\xDE\x04\xA9\x01\x00\x06\xD5'):
+					addr = list(multiord(p.payload[2:8]))
+					break
+			self.bt.end_scan()
 		# connect and wait for status event
 		conn_pkt = self.bt.connect(addr)
 		self.conn = multiord(conn_pkt.payload)[-1]
@@ -290,17 +318,21 @@ class MyoRaw(object):
 			# enable on/off arm notifications
 			self.write_attr(0x24, b'\x02\x00')
 			# enable EMG notifications
-			if not(self.raw):
-				# Send the undocumented filtered 50Hz. 
+			if (self.mode == emg_mode.PREPROCESSED):
+				# Send the undocumented filtered 50Hz.
 				print("Starting filtered, 0x01")
 				self.start_filtered() # 0x01
+			elif (self.mode == emg_mode.FILTERED):
+				print("Starting raw filtered, 0x02")
+				self.start_raw() # 0x02
+			elif (self.mode == emg_mode.RAW):
+				print("Starting raw, unfiltered, 0x03")
+				self.start_raw_unfiltered() #0x03
 			else:
-				if (self.filtered):
-					print("Starting raw filtered, 0x02")
-					self.start_raw() # 0x02
-				else:
-					print("Starting raw, unfiltered, 0x03")
-					self.start_raw_unfiltered() #0x03
+				print("No EMG mode selected, not sending EMG data")
+			# Stop the Myo Disconnecting
+			self.sleep_mode(1)
+
 			# enable battery notifications
 			self.write_attr(0x12, b'\x01\x10')
 
@@ -376,16 +408,16 @@ class MyoRaw(object):
 
 	def power_off(self):
 		'''
-		function to power off the Myo Armband (actually, according to the official BLE specification, 
-		the 0x04 command puts the Myo into deep sleep, there is no way to completely turn the device off). 
-		I think this is a very useful feature since, without this function, you have to wait until the Myo battery is 
+		function to power off the Myo Armband (actually, according to the official BLE specification,
+		the 0x04 command puts the Myo into deep sleep, there is no way to completely turn the device off).
+		I think this is a very useful feature since, without this function, you have to wait until the Myo battery is
 		fully discharged, or use the official Myo app for Windows or Mac and turn off the device from there.
 		- Alvaro Villoslada (Alvipe)
 		'''
 		self.write_attr(0x19, b'\x04\x00')
 
 	def start_raw(self):
-		''' 
+		'''
 		Sends 200Hz, non rectified signal.
 
 		To get raw EMG signals, we subscribe to the four EMG notification
@@ -447,14 +479,12 @@ class MyoRaw(object):
 		Instead of getting the raw EMG signals, we get rectified and smoothed
 		signals, a measure of the amplitude of the EMG (which is useful to have
 		a measure of muscle strength, but are not as useful as a truly raw signal).
-		However this seems to use a data rate of 50Hz. 
+		However this seems to use a data rate of 50Hz.
 		'''
-		# Stop Myo sleeping and disconnecting while sending Filtered data. 
-		self.sleep_mode(1)
-	
+
 		self.write_attr(0x28, b'\x01\x00')
 		self.write_attr(0x19, b'\x01\x03\x01\x01\x00')
-		
+
 	def start_raw_unfiltered(self):
 		'''
 		To get raw EMG signals, we subscribe to the four EMG notification
@@ -554,69 +584,12 @@ class MyoRaw(object):
 			h(battery_level)
 
 if __name__ == '__main__':
-	try:
-		import pygame
-		from pygame.locals import *
-		HAVE_PYGAME = True
-	except ImportError:
-		HAVE_PYGAME = False
-
-	if HAVE_PYGAME:
-		w, h = 800, 600
-		scr = pygame.display.set_mode((w, h))
-
-	last_vals = None
-
-	def plot(scr, vals):
-		DRAW_LINES = True
-
-		global last_vals
-		if last_vals is None:
-			last_vals = vals
-			return
-
-		D = 5
-		scr.scroll(-D)
-		scr.fill((0, 0, 0), (w - D, 0, w, h))
-		for i, (u, v) in enumerate(zip(last_vals, vals)):
-			if DRAW_LINES:
-				pygame.draw.line(scr, (0, 255, 0),
-								 (w - D, int(h/9 * (i+1 - u))),
-								 (w, int(h/9 * (i+1 - v))))
-				pygame.draw.line(scr, (255, 255, 255),
-								 (w - D, int(h/9 * (i+1))),
-								 (w, int(h/9 * (i+1))))
-			else:
-				c = int(255 * max(0, min(1, v)))
-				scr.fill((c, c, c), (w - D, i * h / 8, D, (i + 1) * h / 8 - i * h / 8))
-
-		pygame.display.flip()
-		last_vals = vals
-
-	m = MyoRaw(sys.argv[1] if len(sys.argv) >= 2 else None, filtered=False)
+	m = Myo(sys.argv[1] if len(sys.argv) >= 2 else None, mode=emg_mode.RAW)
 
 	def proc_emg(emg, moving, times=[]):
-		if HAVE_PYGAME:
-			# update pygame display
-			plot(scr, [e / 500. for e in emg])
-		else:
-			print(emg)
-
-		# print framerate of received data
-		times.append(time.time())
-		if len(times) > 20:
-			# print((len(times) - 1) / (times[-1] - times[0]))
-			times.pop(0)
-
-	def proc_battery(battery_level):
-		print("Battery level: %d" % battery_level)
-		if battery_level < 5:
-			m.set_leds([255, 0, 0], [255, 0, 0])
-		else:
-			m.set_leds([128, 128, 255], [128, 128, 255])
+		print(emg)
 
 	m.add_emg_handler(proc_emg)
-	m.add_battery_handler(proc_battery)
 	m.connect()
 
 	m.add_arm_handler(lambda arm, xdir: print('arm', arm, 'xdir', xdir))
@@ -628,36 +601,8 @@ if __name__ == '__main__':
 
 	try:
 		while True:
-			m.run(1)
-
-			if HAVE_PYGAME:
-				for ev in pygame.event.get():
-					if ev.type == QUIT or (ev.type == KEYDOWN and ev.unicode == 'q'):
-						raise KeyboardInterrupt()
-					# elif ev.type == KEYDOWN and ev.unicode == 'd':
-					#     m.disconnect()
-					#     print("Disconnected")
-					#     raise KeyboardInterrupt()
-					elif ev.type == KEYDOWN:
-						if K_1 <= ev.key <= K_3:
-							m.vibrate(ev.key - K_0)
-						if K_KP1 <= ev.key <= K_KP3:
-							m.vibrate(ev.key - K_KP0)
+			m.run()
 
 	except KeyboardInterrupt:
-		pass
-	finally:
-		pygame.quit()
-		m.power_off()
-		print("Power off")
-		#m.disconnect()
-		#print("Disconnected")
-		# command = input("Do you want to (d)isconnect or (p)ower off?\n")
-		# print(command, type(command))
-		# if command == 'd':
-		#     m.disconnect()
-		#     print("Disconnected")
-		# elif command == 'p':
-		#     m.power_off()
-		#     print("Power off")
-		
+		m.disconnect()
+		quit()

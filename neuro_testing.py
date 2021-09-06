@@ -3,7 +3,7 @@ import multiprocessing
 
 import common as c
 from paddle import Paddle
-from myo_raw import MyoRaw
+from myo import Myo, emg_mode
 
 pygame.init()
  
@@ -38,25 +38,24 @@ paddle_dir = MOVE_SPEED
 # ------------ Myo Setup ---------------
 arr = multiprocessing.Array('i', range(8))
 
-m = MyoRaw(raw=False, filtered=True)
-m.connect()
-
 def worker(shared_array):
+	m = MyoRaw(emg_mode.PREPROCESSED)
+	m.connect()
+
 	def add_to_queue(emg, movement):
 		for i in range(8):
 			shared_array[i] = emg[i]
 
 	m.add_emg_handler(add_to_queue)
+	 # Orange logo and bar LEDs
+	m.set_leds([128, 0, 128], [128, 0, 128])
+	# Vibrate to know we connected okay
+	m.vibrate(1)
 
 	"""worker function"""
 	while carryOn:
-		m.run(1)
+		m.run()
 	print("Worker Stopped")
-
- # Orange logo and bar LEDs
-m.set_leds([128, 0, 128], [128, 0, 128])
-# Vibrate to know we connected okay
-m.vibrate(1)
 
 # -------- Main Program Loop -----------
 p = multiprocessing.Process(target=worker, args=(arr,))
