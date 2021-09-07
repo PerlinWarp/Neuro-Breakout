@@ -137,8 +137,16 @@ if __name__ == "__main__":
 			#pred_paddle_pos = predictor.predict(left_data, right_data)
 			pred_paddle_pos = predictor.simple_predict(data, scale=2000)
 
-		paddle.rect.x = pred_paddle_pos
+
 		# --- Game logic should go here
+
+		#Check to see if paddle will go out of bounds
+		if pred_paddle_pos > c.WIN_X:
+			#Restrict paddle movement
+			paddle.rect.x = c.WIN_X - c.PADDLE_X
+		else:
+			paddle.rect.x = pred_paddle_pos
+
 		all_sprites_list.update()
 
 		# Check if the ball is bouncing against any of the 4 walls:
